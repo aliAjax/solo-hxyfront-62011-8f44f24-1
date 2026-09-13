@@ -1,128 +1,86 @@
+import { useMemo, useState } from "react";
 import "./styles.css";
+import { useStore } from "./store";
+import { getReminders } from "./domain";
+import { HorseList } from "./components/HorseList";
+import { Reminders } from "./components/Reminders";
+import { HorseDetail } from "./components/HorseDetail";
+import { HorseForm } from "./components/HorseForm";
 
-const project = {
-  "sourceNo": 6,
-  "id": "hxyfront-62011",
-  "port": 62011,
-  "title": "马术蹄铁修整档案",
-  "domain": "马术蹄铁",
-  "prompt": "做一个面向马术俱乐部蹄铁师的修蹄记录前端项目，可以记录马匹编号、步态问题、蹄形评估、蹄铁类型、钉位、修蹄日期、下次复查日期和照片备注。页面需要有马匹列表、复查提醒、左右前后蹄对比记录、异常步态标记和蹄铁更换历史。",
-  "palette": [
-    "#78350f",
-    "#166534",
-    "#2563eb"
-  ],
-  "metrics": [
-    "待复查",
-    "异常步态",
-    "更换蹄铁",
-    "马匹档案"
-  ],
-  "filters": [
-    "前蹄",
-    "后蹄",
-    "运动马",
-    "休养马"
-  ],
-  "fields": [
-    "马匹编号",
-    "步态问题",
-    "蹄形评估",
-    "蹄铁类型",
-    "钉位",
-    "下次复查"
-  ],
-  "records": [
-    [
-      "HORSE-18",
-      "右前蹄外侧磨耗",
-      "铝蹄铁",
-      "14天后复查"
-    ],
-    [
-      "HORSE-27",
-      "后蹄裂纹",
-      "加护蹄垫",
-      "拍照归档"
-    ],
-    [
-      "HORSE-31",
-      "步态轻微不稳",
-      "需教练复核",
-      "已标记"
-    ]
-  ]
-};
+type View = "list" | "reminders";
 
-function App() {
+export default function App() {
+  const data = useStore();
+  const [view, setView] = useState<View>("list");
+  const [openHorseId, setOpenHorseId] = useState<string | null>(null);
+  const [showHorseForm, setShowHorseForm] = useState(false);
+
+  const urgentCount = useMemo(
+    () => getReminders(data, 7).filter((r) => r.status === "overdue" || r.status === "today" || r.status === "soon").length,
+    [data],
+  );
+
+  const openHorse = (id: string) => setOpenHorseId(id);
+
   return (
     <main className="app">
-      <section className="hero">
-        <p>{project.id} · 源提示词{project.sourceNo} · Port {project.port}</p>
-        <h1>{project.title}</h1>
-        <span>{project.prompt}</span>
-      </section>
-
-      <section className="metrics">
-        {project.metrics.map((metric: string, index: number) => (
-          <article key={metric}>
-            <small>{metric}</small>
-            <strong>{[28, 6, 14, 91][index] ?? 10}</strong>
-          </article>
-        ))}
-      </section>
-
-      <section className="workspace">
-        <aside className="panel">
-          <h2>{project.domain}分类</h2>
-          <div className="chips">
-            {project.filters.map((item: string) => (
-              <button key={item}>{item}</button>
-            ))}
-          </div>
-        </aside>
-
-        <section className="panel form-panel">
-          <div className="heading">
-            <div>
-              <p>专业字段</p>
-              <h2>新增记录</h2>
-            </div>
-            <button className="primary">保存记录</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <section className="panel">
-        <div className="heading">
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-mark">🐎</span>
           <div>
-            <p>近期记录</p>
-            <h2>工作台摘要</h2>
+            <h1>马术俱乐部 · 修蹄档案</h1>
+            <p>蹄铁师专用：马匹档案 / 四蹄评估 / 复查提醒 / 蹄铁更换历史（数据保存在本机浏览器）</p>
           </div>
-          <button>导出CSV</button>
         </div>
-        <div className="records">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
-          ))}
+        <div className="top-actions">
+          <button className="primary" onClick={() => setShowHorseForm(true)}>
+            ＋ 新建马匹档案
+          </button>
         </div>
-      </section>
+      </header>
+
+      {openHorseId ? (
+        <HorseDetail data={data} horseId={openHorseId} onBack={() => setOpenHorseId(null)} />
+      ) : (
+        <>
+          <nav className="main-tabs">
+            <button className={view === "list" ? "tab-on" : ""} onClick={() => setView("list")}>
+              马匹列表（{data.horses.length}）
+            </button>
+            <button className={view === "reminders" ? "tab-on" : ""} onClick={() => setView("reminders")}>
+              复查提醒{urgentCount > 0 ? `（${urgentCount} 待处理）` : "（0）"}
+            </button>
+          </nav>
+
+          {view === "list" && (
+            <HorseList data={data} onOpen={openHorse} onNew={() => setShowHorseForm(true)} />
+          )}
+          {view === "reminders" && <Reminders data={data} onOpen={openHorse} />}
+        </>
+      )}
+
+      {showHorseForm && <HorseForm data={data} onClose={() => setShowHorseForm(false)} />}
+
+      <footer className="footer">
+        共 {data.horses.length} 匹马 · {data.visits.length} 条修蹄记录 · 数据通过 localStorage 本地持久化
+        {" · "}
+        <button
+          type="button"
+          className="link-btn"
+          onClick={() => {
+            if (confirm("确定导出全部档案为 JSON 文件？")) {
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = `修蹄档案备份_${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              URL.revokeObjectURL(a.href);
+            }
+          }}
+        >
+          导出备份
+        </button>
+      </footer>
     </main>
   );
 }
-
-export default App;
